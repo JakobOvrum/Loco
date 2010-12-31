@@ -7,6 +7,7 @@ local concat = table.concat
 local insert = table.insert
 local sub = string.sub
 local unpack = unpack
+local error = error
 
 local print = print
 
@@ -87,7 +88,8 @@ function parse(toks)
 				local line = docLines[i]
 				local succ, err = parseDocLine(doc, line)
 				if not succ then
-					error(("%s:%d: %s"):format(), 0)
+					error(("[Loco] %s:%d: %s"):format(tok.filepath, i, err), 2)
+				end
 			end
 
 			tok.docs = doc
