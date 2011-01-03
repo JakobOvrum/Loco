@@ -21,11 +21,15 @@ function method(sink, name, func)
 		sink(func.docs.description[1], "\n")
 	end
 	
+	sink("\n")
+	
 	if func.docs.args then
 		for argname, desc in pairs(func.docs.args) do
 			sink((" * _%s_ = %s\n"):format(argname, desc[1]))
 		end
 	end
+	
+	sink("\n")
 	
 	if func.docs["return"] then
 		sink("Returns ", func.docs["return"], "\n")
