@@ -1,39 +1,65 @@
 require "loco.tokenize"
 require "loco.docparse"
+local lfs = require "lfs"
 
 local setmetatable = setmetatable
 local assert = assert
 local pairs = pairs
 local concat = table.concat
-
-local print = print
+local getenv = os.getenv
+local error = error
+local setfenv = setfenv
+local loadfile = loadfile
+local open = io.open
+local genmeta = {__index = _G}
 
 --- Loco is a documentation generator for Lua.
 -- this page is generated with Loco.
 module "loco"
 
-local generator = {}
-generator.__index = generator
+local parser = {}
+parser.__index = parser
 
---- Create a new generator
+--- Create a new parser
 -- @param options table with options
--- @return new generator object
+-- @return new parse object
 -- @see Options
 function new(options)
+	if not options then
+		error("Options parameter is required.", 2)
+	end
+	
 	return setmetatable({
 		modules = {};
-	}, generator)
+		outputdir = options.outputdir or error('"outputdir" option must be specified.', 2);
+	}, parser)
 end
 
 --- Options table
 -- @name Options
 -- @type table
---
 -- @field outputdir Directory to put documentation in.
+
+--- Create a new generator
+function generator(name)
+	local locopath = getenv("loco")
+	if not locopath then
+		error('Could not find environment variable "loco", required to load generators. Set "loco" to any directory with a "generators" subdirectory, usually the Loco install directory.', 2)
+	end
+	
+	local genpath = concat{locopath, "/generators/", name, ".lua"}
+	
+	local f = assert(loadfile(genpath))
+	local env = setmetatable({}, genmeta)
+	setfenv(f, env)
+	f()
+	
+	return env
+end
 
 --- Parse source Lua script
 -- @param path Path to file
-function generator:feed(path)
+function parser:feed(path)
 	local tokens = tokenize(path)
 	parse(tokens)
 
@@ -46,7 +72,8 @@ function generator:feed(path)
 		if token.type == "module" then
 			self.modules[name] = self.modules[name] or {objects = {}, functions = {}}
 			curmodule = self.modules[name]
-
+			curmodule.description = token.docs.description
+			
 		elseif curmodule then
 			if token.type == "function" then
 				local obj, args = token.obj, token.args
@@ -61,21 +88,38 @@ function generator:feed(path)
 	end
 end
 
-function generator:write(dirpath)
+function parser:generate(generator)
+	lfs.mkdir(self.outputdir)
+	
 	for name, module in pairs(self.modules) do
-		print(("module \"%s\", functions:"):format(name))
-		for funcname, args in pairs(module.functions) do
-			print(("\t%s(%s)"):format(funcname, concat(args, ", ")))
+		local path = concat{self.outputdir, "/", name, ".", generator.Extension}
+		local sink, fhandle
+		if generator.generator then
+			sink = generator.generator(path)
+		else
+			fhandle = assert(open(path, "w+"))
+			sink = function(...)
+				for k, arg in pairs{...} do
+					fhandle:write(arg)
+				end
+			end
+		end
+	
+		generator.header(sink)
+		generator.module(sink, name, module)
+		
+		for funcname, func in pairs(module.functions) do
+			generator.method(sink, funcname, func)
 		end
 
-		print(("\nmodule \"%s\", objects:"):format(name))
 		for objname, obj in pairs(module.objects) do
-			print(("\t\"%s\" object, methods:"):format(objname))
-			
-			for funcname, token in pairs(obj.methods) do
-				print(("\t\t%s:%s(%s)"):format(objname, funcname, concat(token.args, ", ")))
-			end
+			generator.object(sink, objname, obj)
+		end
+		
+		generator.footer(sink)
+		
+		if fhandle then
+			fhandle:close()
 		end
 	end
 end
-
