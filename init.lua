@@ -14,7 +14,6 @@ local open = io.open
 local genmeta = {__index = _G}
 
 --- Loco is a documentation generator for Lua.
--- this page is generated with Loco.
 module "loco"
 
 local parser = {}
