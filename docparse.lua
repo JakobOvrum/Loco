@@ -59,18 +59,19 @@ local function parseDocLine(doc, line)
 	if not cmd then
 		return nil, ("unknown command \"%s\""):format(cmdname)
 	end
-
-	local args, n = {}, 0
-	for arg in (allArgs or line):gmatch("%S+") do
-		if n < cmd.args then
-			insert(args, arg)
-			n = n + 1
-		else
-			break
-		end
+	
+	allArgs = allArgs or line
+	
+	local args, index = {}, 1
+	for n = 1, cmd.args do
+		local start, stop, arg = allArgs:find("(%S+)", index)
+		insert(args, arg)
+		index = stop + 1
 	end
-
+	insert(args, allArgs:sub(index):match("^%s*(.-)$")) -- pass remaining text as last, stripped argument
+	
 	cmd.f(doc, unpack(args))
+	
 	return true
 end
 
@@ -79,11 +80,11 @@ function parse(toks)
 		local tok = toks[i]
 		local text = cache.get(tok.filepath)
 		local pos = tok.filepos
-
+		
+		local doc = tok.docs or {}
+		
 		local docLines = findDocLines(text, pos)
 		if docLines then
-			local doc = tok.docs or {}
-			
 			for i = #docLines, 1, -1 do
 				local line = docLines[i]
 				local succ, err = parseDocLine(doc, line)
@@ -91,9 +92,9 @@ function parse(toks)
 					error(("[Loco] %s:%d: %s"):format(tok.filepath, i, err), 2)
 				end
 			end
-
-			tok.docs = doc
 		end
+		
+		tok.docs = doc
 	end
 end
 

@@ -18,4 +18,17 @@ commands = {
 			insert(doc.args[parameter], desc)
 		end
 	};
+	
+	["return"] = {args = 0,
+		f = function(doc, desc)
+			doc["return"] = desc
+		end
+	};
+	
+	["see"] = {args = 0,
+		f = function(doc, seealso)
+			doc.see = doc.see or {}
+			insert(doc.see, seealso)
+		end
+	},
 }
